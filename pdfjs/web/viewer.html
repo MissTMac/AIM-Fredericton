@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <!--
 Copyright 2012 Mozilla Foundation
 
@@ -27,7 +27,7 @@ See https://github.com/adobe-type-tools/cmap-resources
     <meta name="google" content="notranslate" />
     <title>PDF.js viewer</title>
 
-<!-- This snippet is used in production (included from viewer.html) -->
+<!-- This snippet used in production  -->
 <link rel="resource" type="application/l10n" href="locale/locale.json" />
 <script src="../build/pdf.mjs" type="module"></script>
 
@@ -220,8 +220,7 @@ See https://github.com/adobe-type-tools/cmap-resources
                 <!-- sidebarContainer -->
 
                 <div class="toolbarButtonSpacer"></div>
-                <!-- Project AIM customization: Always-visible find bar (remove Find button) +
-                     options in a vertical kebab menu + clear-search. -->
+                <!-- Always-visible find bar -->
                 <div class="toolbarHorizontalGroup" id="findbar">
                   <button id="viewFindButton" class="toolbarButton hidden" type="button" tabindex="-1" aria-hidden="true"></button>
                   <div id="findInputContainer" class="toolbarHorizontalGroup">
@@ -553,7 +552,7 @@ See https://github.com/adobe-type-tools/cmap-resources
                         <span data-l10n-id="pdfjs-open-file-button-label"></span>
                       </button>
 
-                      <!-- Project AIM: Editing tools moved into this menu (instead of always occupying the right side). -->
+                      <!-- Project AIM: Editing tools -->
                       <div class="horizontalToolbarSeparator"></div>
                       <div id="aimEditorToolsSection" class="aimSecondarySection" aria-label="Editing tools">
                         <div class="aimSecondarySectionTitle">Editing Tools</div>
@@ -1199,7 +1198,7 @@ See https://github.com/adobe-type-tools/cmap-resources
     <!-- outerContainer -->
     <div id="printContainer"></div>
   
-<!-- AIM_FIND_BUTTONS_V7 -->
+<!-- AIM find buttons-->
 <script>
 (function() {
   const findInput = document.getElementById('findInput');
@@ -1210,7 +1209,7 @@ See https://github.com/adobe-type-tools/cmap-resources
   const nextBtn = document.getElementById('findNextButton');
   const optionsMenu = document.getElementById('findOptionsMenu');
 
-  // Auto-grow textarea up to ~3 lines (CSS also limits max-height)
+  // Auto-grow text area up to ~3 lines for longer queries
   function autoGrow() {
     if (!findInput) return;
     findInput.style.height = 'auto';
@@ -1223,12 +1222,12 @@ See https://github.com/adobe-type-tools/cmap-resources
     autoGrow();
   }
 
-  // Search triggers "next occurrence" (same as Next button)
+  // Next button
   if (searchBtn && nextBtn) {
     searchBtn.addEventListener('click', () => nextBtn.click());
   }
 
-  // Clear Search always visible; clears input and clears highlights by re-running find
+  // Clear Search always visible
   if (clearBtn && findInput) {
     clearBtn.addEventListener('click', () => {
       findInput.value = '';
