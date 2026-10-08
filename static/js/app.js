@@ -139,37 +139,804 @@ function pdfUrl(pathSegments) {
 
 
 
-/* ================= Map address/place search (Esri geocoder) =================
-                   esri-leaflet-geocoder must be included within HTML
-=============================================================== */
-try {
-    // Localize results to the Fredericton area 
-    // - useMapBounds at zoom >= 12 keeps the geocoder focused on what the user is looking at
-    // - searchBounds ensures results stay within a reasonable bounding box around Fredericton
+/* ================= Map address/place search =================
+   Natural Resources Canada / GeoView Geolocator API
+================================================================ */
+
+(function initCanadianGeocoder() {
+
+    const GEOLocator_URL =
+        'https://geolocator.api.geo.ca/';
+
     const frederictonBounds = L.latLngBounds(
         [45.85, -66.78],
         [46.05, -66.48]
     );
 
-    const searchControl = L.esri.Geocoding.geosearch({
-        position: 'topleft',
-        placeholder: 'Search address / place (Fredericton, NB)',
-        useMapBounds: 12,
-        searchBounds: frederictonBounds
-    }).addTo(map);
+    const resultsLayer =
+        L.layerGroup().addTo(map);
 
-    const resultsLayer = L.layerGroup().addTo(map);
-    searchControl.on('results', (data) => {
-        resultsLayer.clearLayers();
-        if (data.results && data.results[0]) {
-            const r = data.results[0];
-            resultsLayer.addLayer(L.marker(r.latlng));
-            map.setView(r.latlng, Math.max(map.getZoom(), 15));
+    const searchControl =
+        L.control({
+            position: 'topleft'
+        });
+
+    searchControl.onAdd = function () {
+
+        const container =
+            L.DomUtil.create(
+                'div',
+                'leaflet-control aim-geocoder-control'
+            );
+
+        const form =
+            document.createElement('form');
+
+        form.className =
+            'aim-geocoder-form';
+
+        const input =
+            document.createElement('input');
+
+        input.type = 'search';
+
+        input.placeholder =
+            'Search address / place (Fredericton, NB)';
+
+        input.setAttribute(
+            'aria-label',
+            'Search address or place'
+        );
+
+        input.autocomplete = 'off';
+
+        const button =
+            document.createElement('button');
+
+        button.type = 'submit';
+
+        button.textContent = 'Search';
+
+        button.title =
+            'Search Canadian address or place';
+
+        form.appendChild(input);
+        form.appendChild(button);
+
+        container.appendChild(form);
+
+        const results =
+            document.createElement('div');
+
+        results.className =
+            'aim-geocoder-results';
+
+        results.style.display = 'none';
+
+        container.appendChild(results);
+
+        L.DomEvent.disableClickPropagation(container);
+        L.DomEvent.disableScrollPropagation(container);
+
+
+        function clearResults() {
+
+            results.innerHTML = '';
+            results.style.display = 'none';
         }
-    });
-} catch (e) {
-    console.warn('Geocoder not available (missing esri-leaflet-geocoder include?)', e);
+
+
+        function showMessage(message) {
+
+            results.innerHTML = '';
+
+            const messageEl =
+                document.createElement('div');
+
+            messageEl.className =
+                'aim-geocoder-message';
+
+            messageEl.textContent = message;
+
+            results.appendChild(messageEl);
+
+            results.style.display = 'block';
+        }
+
+
+        function escapeHtml(value) {
+
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+
+        function isWithinFrederictonBounds(
+            latitude,
+            longitude
+        ) {
+
+            return frederictonBounds.contains([
+                latitude,
+                longitude
+            ]);
+        }
+
+
+        function getResultLabel(result, searchText) {
+
+    const isAddressResult =
+        (
+            result.key === 'locate' &&
+            Array.isArray(result.tag) &&
+            result.tag.includes('INTERPOLATED_POSITION')
+        ) ||
+        (
+            result.key === 'nominatim' &&
+            String(result.category || '')
+                .toLowerCase() === 'building'
+        );
+
+    if (isAddressResult) {
+
+        const streetName =
+            String(result.name || '')
+                .replace(/^\s*\d+\s*,?\s*/, '')
+                .replace(/,\s*(carleton|fredericton).*$/i, '')
+                .trim();
+
+        const numberMatch =
+            String(result.name || '')
+                .match(/^\s*(\d+)/);
+
+        if (numberMatch && streetName) {
+            return (
+                `${numberMatch[1]} ${streetName}, ` +
+                `Fredericton, New Brunswick`
+            );
+        }
+    }
+
+    const parts = [];
+
+    if (result.name) {
+        parts.push(result.name);
+    }
+
+    if (
+        result.province &&
+        !String(result.name || '')
+            .toLowerCase()
+            .includes(
+                String(result.province).toLowerCase()
+            )
+    ) {
+        parts.push(result.province);
+    }
+
+    if (result.category) {
+        parts.push(`(${result.category})`);
+    }
+
+    return (
+        parts.join(' ') ||
+        'Unnamed location'
+    );
 }
+
+
+        function selectResult(result) {
+
+            const latitude =
+                Number(result.lat);
+
+            const longitude =
+                Number(result.lng);
+
+            if (
+                !Number.isFinite(latitude) ||
+                !Number.isFinite(longitude)
+            ) {
+                return;
+            }
+
+            resultsLayer.clearLayers();
+
+            const markerIcon =
+    L.icon({
+        iconRetinaUrl:
+            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
+
+        iconUrl:
+            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+
+        shadowUrl:
+            'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
+
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+        popupAnchor: [1, -34],
+        shadowSize: [41, 41]
+    });
+
+const marker =
+    L.marker(
+        [
+            latitude,
+            longitude
+        ],
+        {
+            icon: markerIcon
+        }
+    );
+
+            const title =
+                result.name ||
+                'Selected location';
+
+            const province =
+                result.province ||
+                '';
+
+            const category =
+                result.category ||
+                '';
+
+            let popupHtml =
+                `<strong>${escapeHtml(title)}</strong>`;
+
+            if (province) {
+                popupHtml +=
+                    `<br>${escapeHtml(province)}`;
+            }
+
+            if (category) {
+                popupHtml +=
+                    `<br><small>${escapeHtml(category)}</small>`;
+            }
+
+            marker.bindPopup(popupHtml);
+
+            resultsLayer.addLayer(marker);
+
+            map.setView(
+                [latitude, longitude],
+                Math.max(map.getZoom(), 15)
+            );
+
+            marker.openPopup();
+
+            clearResults();
+        }
+
+
+        async function searchCanadianGeolocator(query) {
+
+            const searchText =
+    		String(query || '').trim();
+
+	    const normalizedSearchText =
+    		searchText
+        	   .replace(/\bst\.?\b/gi, 'street')
+        	   .replace(/\bave\.?\b/gi, 'avenue')
+        	   .replace(/\brd\.?\b/gi, 'road')
+        	   .replace(/\bdr\.?\b/gi, 'drive')
+        	   .replace(/\bblvd\.?\b/gi, 'boulevard')
+        	   .replace(/\bln\.?\b/gi, 'lane')
+        	   .replace(/\bct\.?\b/gi, 'court')
+        	   .replace(/\bcres\.?\b/gi, 'crescent')
+        	   .replace(/\bpl\.?\b/gi, 'place')
+        	   .replace(/\bpkwy\.?\b/gi, 'parkway')
+       		   .replace(/\bhwy\.?\b/gi, 'highway');
+
+	    const looksLikeStreet =
+    		/(?:street|st|avenue|ave|road|rd|drive|dr|boulevard|blvd|lane|ln|court|ct|crescent|cres|		place|pl|terrace|way|trail|parkway|pkwy|highway|hwy)\.?(?:\s*,.*)?$/i.test(searchText);
+
+	   const looksLikeAddress =
+    	       /^\s*\d+\s+.+?(?:street|st\.?|avenue|ave\.?|road|rd\.?|drive|dr\.?|boulevard|blvd\.?|lane|	       ln\.?|court|ct\.?|crescent|cres\.?|place|pl\.?|terrace|way|trail|parkway|pkwy\.?|highway|	       hwy\.?)(?:\s*,.*)?$/i.test(searchText);
+
+            if (!searchText) {
+
+                clearResults();
+                return;
+            }
+
+            showMessage('Searching…');
+
+            try {
+
+                const geolocatorQuery =
+    		    looksLikeAddress || looksLikeStreet
+       		        ? `${normalizedSearchText}, Fredericton, New Brunswick`
+                        : normalizedSearchText;
+
+		const params =
+    		    new URLSearchParams({
+
+        		q: geolocatorQuery,
+
+        		lang: 'en',
+
+        		keys:
+           		    'geonames,nominatim,locate'
+   		    });
+
+                const requestUrl =
+                    `${GEOLocator_URL}?${params.toString()}`;
+
+                console.log(
+                    'NRCan Geolocator request:',
+                    requestUrl
+                );
+
+                const response =
+                    await fetch(
+                        requestUrl,
+                        {
+                            method: 'GET',
+                            headers: {
+                                'Accept':
+                                    'application/json'
+                            }
+                        }
+                    );
+
+                if (!response.ok) {
+
+                    throw new Error(
+                        `NRCan Geolocator returned HTTP ${response.status}`
+                    );
+                }
+
+                const data =
+                    await response.json();
+
+                console.log(
+                    'NRCan Geolocator response:',
+                    data
+                );
+
+		console.log(
+    		    'NRCan search classification:',
+                    {
+        		searchText,
+        		normalizedSearchText,
+        		looksLikeStreet,
+        		looksLikeAddress,
+        		resultCount: data.length
+   		    }
+		);
+
+                if (
+                    !Array.isArray(data) ||
+                    data.length === 0
+                ) {
+
+                    showMessage(
+                        'No Canadian locations found.'
+                    );
+
+                    return;
+                }
+
+                /* ---------------------------------------------------------------
+   Filter and prioritize results for the Fredericton application
+---------------------------------------------------------------- */
+
+const searchLower =
+    searchText.toLowerCase();
+
+
+/* ---------------------------------------------------------------
+   Determine whether this looks like an address search.
+
+   Examples:
+   "258 Charlotte Street"
+   "15 Dineen Drive"
+   "123 Queen Street Fredericton"
+---------------------------------------------------------------- */
+
+
+const normalizedQuery = searchText.toLowerCase();
+
+function isInFrederictonArea(result) {
+    const latitude = Number(result.lat);
+    const longitude = Number(result.lng);
+
+    return (
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        frederictonBounds.contains([latitude, longitude])
+    );
+}
+
+function hasTag(result, tag) {
+    return Array.isArray(result.tag) &&
+        result.tag.includes(tag);
+}
+
+function isIntersection(result) {
+    return String(result.category || '').toLowerCase() === 'intersection';
+}
+
+function isAdministrativePlace(result) {
+    const category =
+        String(result.category || '').toLowerCase();
+
+    return [
+        'city',
+        'town',
+        'village',
+        'municipality',
+        'unincorporated area',
+        'county'
+    ].includes(category);
+}
+
+let usableResults = data
+    .filter(isInFrederictonArea);
+
+/*
+ * ADDRESS SEARCH
+ *
+ * For numbered addresses, prefer:
+ *   1. Nominatim Building
+ *   2. NRCan locate Street / interpolated position
+ *
+ * This avoids showing intersections and city-level results.
+ */
+
+if (looksLikeAddress) {
+
+    const queryNumber =
+        searchText
+            .trim()
+            .match(/^\s*(\d+)/);
+
+    usableResults = usableResults.filter(result => {
+
+        if (!queryNumber) {
+            return false;
+        }
+
+        if (!frederictonBounds.contains([
+            Number(result.lat),
+            Number(result.lng)
+        ])) {
+            return false;
+        }
+
+        const resultName =
+            String(result.name || '');
+
+        const resultNumberMatch =
+            resultName.match(/^\s*(\d+)/);
+
+        if (!resultNumberMatch) {
+            return false;
+        }
+
+        if (resultNumberMatch[1] !== queryNumber[1]) {
+            return false;
+        }
+
+        const isLocateAddress =
+            result.key === 'locate' &&
+            String(result.category || '')
+                .toLowerCase() === 'street' &&
+            Array.isArray(result.tag) &&
+            result.tag.includes(
+                'INTERPOLATED_POSITION'
+            );
+
+        const isNominatimBuilding =
+            result.key === 'nominatim' &&
+            String(result.category || '')
+                .toLowerCase() === 'building';
+
+        return (
+            isLocateAddress ||
+            isNominatimBuilding
+        );
+    });
+
+    usableResults.sort((a, b) => {
+
+        const aIsLocate =
+            a.key === 'locate' &&
+            Array.isArray(a.tag) &&
+            a.tag.includes(
+                'INTERPOLATED_POSITION'
+            );
+
+        const bIsLocate =
+            b.key === 'locate' &&
+            Array.isArray(b.tag) &&
+            b.tag.includes(
+                'INTERPOLATED_POSITION'
+            );
+
+        return bIsLocate - aIsLocate;
+    });
+
+    usableResults =
+        usableResults.slice(0, 3);
+
+} else if (looksLikeStreet) {
+
+    /*
+ * STREET-ONLY SEARCH
+ *
+ * Keep street/road results that are inside the
+ * Fredericton project area. Remove intersections.
+ */
+
+usableResults = usableResults.filter(result => {
+
+    const category =
+        String(result.category || '').toLowerCase();
+
+    if (category === 'intersection') {
+        return false;
+    }
+
+    if (!frederictonBounds.contains([
+        Number(result.lat),
+        Number(result.lng)
+    ])) {
+        return false;
+    }
+
+    return (
+        category === 'street' ||
+        category === 'road' ||
+        category === 'place'
+    );
+});
+
+usableResults.sort((a, b) => {
+
+    const aName =
+        String(a.name || '').toLowerCase();
+
+    const bName =
+        String(b.name || '').toLowerCase();
+
+    const aExact =
+        aName === normalizedQuery;
+
+    const bExact =
+        bName === normalizedQuery;
+
+    if (aExact !== bExact) {
+        return bExact - aExact;
+    }
+
+    const aContains =
+        aName.includes(normalizedQuery);
+
+    const bContains =
+        bName.includes(normalizedQuery);
+
+    if (aContains !== bContains) {
+        return bContains - aContains;
+    }
+
+    return 0;
+});
+
+usableResults = usableResults.slice(0, 3);
+
+} else {
+
+    /*
+     * PLACE / LANDMARK SEARCH
+     *
+     * Keep named places and landmarks.
+     * Remove intersections and broad administrative results.
+     */
+    usableResults = usableResults.filter(result => {
+
+        if (isIntersection(result)) {
+            return false;
+        }
+
+        if (isAdministrativePlace(result)) {
+
+            /*
+             * Keep Fredericton itself when the user searches
+             * specifically for Fredericton.
+             */
+            const name =
+                String(result.name || '').toLowerCase();
+
+            return (
+                normalizedQuery === 'fredericton' &&
+                name.includes('fredericton')
+            );
+        }
+
+        return true;
+    });
+
+    /*
+     * Remove duplicate coordinates.
+     */
+    const seen = new Set();
+
+    usableResults = usableResults.filter(result => {
+
+        const key =
+            `${Number(result.lat).toFixed(6)},` +
+            `${Number(result.lng).toFixed(6)}`;
+
+        if (seen.has(key)) {
+            return false;
+        }
+
+        seen.add(key);
+        return true;
+    });
+
+    /*
+     * Prefer results whose names actually match
+     * the words the user typed.
+     */
+    usableResults.sort((a, b) => {
+
+        const aName =
+            String(a.name || '').toLowerCase();
+
+        const bName =
+            String(b.name || '').toLowerCase();
+
+        const aStarts =
+            aName.startsWith(normalizedQuery);
+
+        const bStarts =
+            bName.startsWith(normalizedQuery);
+
+        const aContains =
+            aName.includes(normalizedQuery);
+
+        const bContains =
+            bName.includes(normalizedQuery);
+
+        if (aStarts !== bStarts) {
+            return bStarts - aStarts;
+        }
+
+        if (aContains !== bContains) {
+            return bContains - aContains;
+        }
+
+        return 0;
+    });
+
+    usableResults = usableResults.slice(0, 5);
+}
+
+if (usableResults.length === 0) {
+    showMessage(
+        'Place not found in the Fredericton area.'
+    );
+    return;
+}
+
+                results.innerHTML = '';
+
+                usableResults.forEach(
+                    result => {
+
+                        const item =
+                            document.createElement(
+                                'button'
+                            );
+
+                        item.type = 'button';
+
+                        item.className =
+                            'aim-geocoder-result';
+
+                        item.textContent =
+                            getResultLabel(result, searchText);
+
+                        item.addEventListener(
+                            'click',
+                            function () {
+
+                                selectResult(result);
+                            }
+                        );
+
+                        results.appendChild(item);
+                    }
+                );
+
+                results.style.display =
+                    'block';
+
+            } catch (error) {
+
+                console.error(
+                    'NRCan Geolocator search failed:',
+                    error
+                );
+
+                showMessage(
+                    'Address search is temporarily unavailable.'
+                );
+            }
+        }
+
+
+        form.addEventListener(
+            'submit',
+            function (event) {
+
+                event.preventDefault();
+
+                searchCanadianGeolocator(
+                    input.value
+                );
+            }
+        );
+
+
+        input.addEventListener(
+            'keydown',
+            function (event) {
+
+                if (event.key === 'Escape') {
+
+                    clearResults();
+
+                    input.blur();
+                }
+            }
+        );
+
+
+        window.AIMCanadianGeocoder = {
+
+            search:
+                searchCanadianGeolocator,
+
+            clear:
+                clearResults
+        };
+
+
+        return container;
+    };
+
+
+    searchControl.addTo(map);
+
+
+    map.on(
+        'click',
+        function () {
+
+            const results =
+                document.querySelector(
+                    '.aim-geocoder-results'
+                );
+
+            if (results) {
+
+                results.style.display =
+                    'none';
+            }
+        }
+    );
+
+})();
+
 
 /* ================= Mosaics zoom-to-extent  ================= */
 

@@ -10,7 +10,7 @@
 
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="https://unpkg.com/esri-leaflet-geocoder@3.1.6/dist/esri-leaflet-geocoder.css" />
+  
 
   <!-- App CSS (relative path within project files; works for localhost (dev) and GitHub Pages (production)) -->
   <link rel="stylesheet" href="static/css/styles.css" />
@@ -57,9 +57,19 @@
   </div>
 
   <!-- Leaflet + Esri Leaflet Map packages -->
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
-  <script src="https://unpkg.com/esri-leaflet-geocoder@3.1.6/dist/esri-leaflet-geocoder.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+  L.Icon.Default.mergeOptions({
+  imagePath: 'https://unpkg.com/leaflet@1.9.4/dist/images/',
+  iconRetinaUrl: 'marker-icon-2x.png',
+  iconUrl: 'marker-icon.png',
+  shadowUrl: 'marker-shadow.png'
+});
+</script>
+
+<script src="https://unpkg.com/esri-leaflet@3.0.12/dist/esri-leaflet.js"></script>
+  
 
   <!-- SheetJS for metadata rendering from XLSX mosaic metadata file -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
